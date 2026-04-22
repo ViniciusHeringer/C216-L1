@@ -1,99 +1,89 @@
-alunos = []
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+
+app = FastAPI(title="API Faculdade", description="CRUD de Alunos com FastAPI")
+
+alunos_db = []
 contadores_cursos = {}
 
+class AlunoBase(BaseModel):
+    nome: str
+    email: str
+    curso: str
 
-def gerar_matricula(curso):
+class AlunoUpdate(BaseModel):
+    nome: Optional[str] = None
+    email: Optional[str] = None
+
+class AlunoResponse(AlunoBase):
+    matricula: str
+
+def gerar_matricula(curso: str) -> str:
     curso = curso.upper()
     if curso not in contadores_cursos:
         contadores_cursos[curso] = 1
     else:
         contadores_cursos[curso] += 1
-
     return f"{curso}{contadores_cursos[curso]}"
 
-
-def criar_aluno():
-    print("\nCadastro Aluno")
-    nome = input("Nome: ")
-    email = input("Email: ")
-    curso = input("Curso: ").upper()
-
-    matricula = gerar_matricula(curso)
-
+@app.post("/alunos", response_model=AlunoResponse, status_code=201)
+def criar_aluno(aluno: AlunoBase):
+    curso_upper = aluno.curso.upper()
+    matricula = gerar_matricula(curso_upper)
+    
     novo_aluno = {
-        "nome": nome,
-        "email": email,
-        "curso": curso,
+        "nome": aluno.nome,
+        "email": aluno.email,
+        "curso": curso_upper,
         "matricula": matricula
     }
+    alunos_db.append(novo_aluno)
+    return novo_aluno
 
-    alunos.append(novo_aluno)
-    print(f"\nAluno cadastrado com sucesso. Matrícula: {matricula}")
-
-
+@app.get("/alunos", response_model=List[AlunoResponse])
 def listar_alunos():
-    print("\nLista Alunos")
-    if not alunos:
-        print("Nenhum aluno cadastrado")
-        return
+    return alunos_db
 
-    for aluno in alunos:
-        print(
-            f"Matrícula: {aluno['matricula']} | Nome: {aluno['nome']} | Curso: {aluno['curso']} | Email: {aluno['email']}")
+@app.get("/alunos/{matricula}", response_model=AlunoResponse)
+def buscar_aluno(matricula: str):
+    matricula = matricula.upper()
+    for aluno in alunos_db:
+        if aluno["matricula"] == matricula:
+            return aluno
+    raise HTTPException(status_code=404, detail="Aluno não encontrado")
 
+@app.put("/alunos/{matricula}", response_model=AlunoResponse)
+def atualizar_aluno_completo(matricula: str, aluno_atualizado: AlunoBase):
+    matricula = matricula.upper()
+    for i, aluno in enumerate(alunos_db):
+        if aluno["matricula"] == matricula:
+            alunos_db[i] = {
+                "nome": aluno_atualizado.nome,
+                "email": aluno_atualizado.email,
+                "curso": aluno_atualizado.curso.upper(),
+                "matricula": matricula
+            }
+            return alunos_db[i]
+    raise HTTPException(status_code=404, detail="Aluno não encontrado")
 
-def atualizar_aluno():
-    print("\nAtualiza Aluno")
-    matricula = input("Digite a matrícula do aluno que deseja alterar: ").upper()
+@app.patch("/alunos/{matricula}", response_model=AlunoResponse)
+def atualizar_aluno_parcial(matricula: str, aluno_atualizado: AlunoUpdate):
+    matricula = matricula.upper()
+    for aluno in alunos_db:
+        if aluno["matricula"] == matricula:
+            if aluno_atualizado.nome is not None:
+                aluno["nome"] = aluno_atualizado.nome
+            if aluno_atualizado.email is not None:
+                aluno["email"] = aluno_atualizado.email
+            return aluno
+    raise HTTPException(status_code=404, detail="Aluno não encontrado")
 
-    for aluno in alunos:
-        if aluno['matricula'] == matricula:
-            print(f"Editando dados de: {aluno['nome']}")
-            aluno['nome'] = input(f"Novo nome (atual: {aluno['nome']}): ") or aluno['nome']
-            aluno['email'] = input(f"Novo email (atual: {aluno['email']}): ") or aluno['email']
-            print("Dados atualizados")
+@app.delete("/alunos/{matricula}", status_code=204)
+def excluir_aluno(matricula: str):
+    matricula = matricula.upper()
+    for i, aluno in enumerate(alunos_db):
+        if aluno["matricula"] == matricula:
+            del alunos_db[i]
             return
-
-    print("Aluno nao encontrado")
-
-
-def excluir_aluno():
-    print("\nApaga Aluno")
-    matricula = input("Digite a matrícula do aluno que deseja remover: ").upper()
-
-    for aluno in alunos:
-        if aluno['matricula'] == matricula:
-            alunos.remove(aluno)
-            print(f"Aluno {matricula} removido com sucesso.")
-            return
-
-    print("Aluno não encontrado")
-
-
-def menu():
-    while True:
-        print("\n=== SISTEMA ACADÊMICO ===")
-        print("1- Cadastrar Aluno")
-        print("2- Listar Alunos")
-        print("3- Atualizar Aluno")
-        print("4- Excluir Aluno")
-        print("5- Sair")
-
-        opcao = input("Escolha uma opção: ")
-
-        if opcao == '1':
-            criar_aluno()
-        elif opcao == '2':
-            listar_alunos()
-        elif opcao == '3':
-            atualizar_aluno()
-        elif opcao == '4':
-            excluir_aluno()
-        elif opcao == '5':
-            print("Saindo...")
-            break
-        else:
-            print("Opção inválida, tente novamente.")
-
-if __name__ == "__main__":
-    menu()
+    raise HTTPException(status_code=404, detail="Aluno não encontrado")
