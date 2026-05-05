@@ -1,89 +1,79 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional, Literal
 
-app = FastAPI(title="API Faculdade", description="CRUD de Alunos com FastAPI")
+app = FastAPI(title="Gerenciador de Alunos", version="1.0")
 
 alunos_db = []
-contadores_cursos = {}
+contadores_cursos = {"GES": 0, "GEC": 0, "GET": 0, "GEP": 0}
 
 class AlunoBase(BaseModel):
     nome: str
     email: str
-    curso: str
+    curso: Literal["GES", "GEC", "GET", "GEP"]
 
 class AlunoUpdate(BaseModel):
     nome: Optional[str] = None
     email: Optional[str] = None
+    curso: Optional[Literal["GES", "GEC", "GET", "GEP"]] = None
 
 class AlunoResponse(AlunoBase):
-    matricula: str
+    id: str
+    matricula: int
 
-def gerar_matricula(curso: str) -> str:
-    curso = curso.upper()
-    if curso not in contadores_cursos:
-        contadores_cursos[curso] = 1
-    else:
-        contadores_cursos[curso] += 1
-    return f"{curso}{contadores_cursos[curso]}"
-
-@app.post("/alunos", response_model=AlunoResponse, status_code=201)
+@app.post("/api/v1/alunos/", response_model=AlunoResponse, status_code=201)
 def criar_aluno(aluno: AlunoBase):
-    curso_upper = aluno.curso.upper()
-    matricula = gerar_matricula(curso_upper)
+    curso = aluno.curso.upper()
+    
+    contadores_cursos[curso] += 1
+    matricula = contadores_cursos[curso]
+    aluno_id = f"{curso}{matricula}"
     
     novo_aluno = {
+        "id": aluno_id,
+        "matricula": matricula,
         "nome": aluno.nome,
         "email": aluno.email,
-        "curso": curso_upper,
-        "matricula": matricula
+        "curso": curso
     }
     alunos_db.append(novo_aluno)
     return novo_aluno
 
-@app.get("/alunos", response_model=List[AlunoResponse])
+@app.get("/api/v1/alunos/", response_model=List[AlunoResponse])
 def listar_alunos():
     return alunos_db
 
-@app.get("/alunos/{matricula}", response_model=AlunoResponse)
-def buscar_aluno(matricula: str):
-    matricula = matricula.upper()
+@app.get("/api/v1/alunos/{aluno_id}", response_model=AlunoResponse)
+def buscar_aluno(aluno_id: str):
+    aluno_id = aluno_id.upper()
     for aluno in alunos_db:
-        if aluno["matricula"] == matricula:
+        if aluno["id"] == aluno_id:
             return aluno
     raise HTTPException(status_code=404, detail="Aluno não encontrado")
 
-@app.put("/alunos/{matricula}", response_model=AlunoResponse)
-def atualizar_aluno_completo(matricula: str, aluno_atualizado: AlunoBase):
-    matricula = matricula.upper()
-    for i, aluno in enumerate(alunos_db):
-        if aluno["matricula"] == matricula:
-            alunos_db[i] = {
-                "nome": aluno_atualizado.nome,
-                "email": aluno_atualizado.email,
-                "curso": aluno_atualizado.curso.upper(),
-                "matricula": matricula
-            }
-            return alunos_db[i]
-    raise HTTPException(status_code=404, detail="Aluno não encontrado")
-
-@app.patch("/alunos/{matricula}", response_model=AlunoResponse)
-def atualizar_aluno_parcial(matricula: str, aluno_atualizado: AlunoUpdate):
-    matricula = matricula.upper()
+@app.patch("/api/v1/alunos/{aluno_id}", response_model=AlunoResponse)
+def atualizar_aluno(aluno_id: str, aluno_atualizado: AlunoUpdate):
+    aluno_id = aluno_id.upper()
     for aluno in alunos_db:
-        if aluno["matricula"] == matricula:
+        if aluno["id"] == aluno_id:
             if aluno_atualizado.nome is not None:
                 aluno["nome"] = aluno_atualizado.nome
             if aluno_atualizado.email is not None:
                 aluno["email"] = aluno_atualizado.email
+            if aluno_atualizado.curso is not None:
+                aluno["curso"] = aluno_atualizado.curso.upper()
             return aluno
     raise HTTPException(status_code=404, detail="Aluno não encontrado")
 
-@app.delete("/alunos/{matricula}", status_code=204)
-def excluir_aluno(matricula: str):
-    matricula = matricula.upper()
+@app.delete("/api/v1/alunos/{aluno_id}", status_code=204)
+def excluir_aluno(aluno_id: str):
+    aluno_id = aluno_id.upper()
     for i, aluno in enumerate(alunos_db):
-        if aluno["matricula"] == matricula:
+        if aluno["id"] == aluno_id:
             del alunos_db[i]
             return
     raise HTTPException(status_code=404, detail="Aluno não encontrado")
+
+@app.delete("/api/v1/alunos/", status_code=204)
+def resetar_alunos():
+    alunos_db.clear()
