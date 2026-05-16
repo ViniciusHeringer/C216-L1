@@ -1,10 +1,30 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:15
+    container_name: postgres_faculdade
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: faculdade_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   api:
     build: .
     container_name: sistema_faculdade_api
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@db:5432/faculdade_db
+    depends_on:
+      - db
     volumes:
       - .:/app
+
+volumes:
+  postgres_data:

@@ -2,9 +2,12 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-COPY main.py .
+RUN apt-get update && apt-get install -y libpq-dev gcc
 
-RUN pip install fastapi uvicorn pydantic
+COPY main.py .
+COPY test_main.py .
+
+RUN pip install fastapi uvicorn pydantic sqlalchemy psycopg2-binary pytest httpx
 
 EXPOSE 8000
 
