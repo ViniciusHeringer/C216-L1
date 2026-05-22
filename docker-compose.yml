@@ -26,5 +26,15 @@ services:
     volumes:
       - .:/app
 
+  frontend:
+    image: nginx:alpine
+    container_name: sistema_faculdade_frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
